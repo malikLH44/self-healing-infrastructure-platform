@@ -14,28 +14,40 @@ SHIP follows a centralized-controller architecture. The controller coordinates m
 
 ```mermaid
 flowchart TD
-    S[Monitored Services]
-    M[Monitoring and Health Checks]
-    D[Incident Detection]
-    P[Remediation Policy Engine]
-    W[Remediation Worker]
-    V[Recovery Verification]
-    DB[(PostgreSQL)]
-    API[Controller API]
-    UI[Web Dashboard]
-    O[Observability Stack]
+    subgraph Services["Monitored Environment"]
+        S[Monitored Containers]
+        H[Health Checks]
+        E[Metrics Exporters]
+        S --> H
+        S --> E
+    end
 
-    S --> M
-    M --> D
-    D --> DB
-    D --> P
-    P --> W
-    W --> S
-    W --> V
-    V --> DB
-    M --> O
-    W --> O
-    DB --> API
+    subgraph Control["SHIP Control Plane"]
+        D[Monitoring and Detection]
+        P[Remediation Policy Engine]
+        API[FastAPI Controller]
+        DB[(PostgreSQL)]
+        D --> P
+        D --> DB
+        P --> DB
+        API --> DB
+    end
+
+    subgraph Execution["Restricted Execution Plane"]
+        W[Remediation Worker]
+        Proxy[Docker Socket Proxy]
+        W --> Proxy
+        Proxy --> S
+        W --> DB
+    end
+
+    Prom[Prometheus]
+    Graf[Grafana]
+    UI[React Dashboard]
+
+    H --> D
+    E --> Prom
+    Prom --> Graf
     API --> UI
 ```
 
