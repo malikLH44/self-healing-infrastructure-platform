@@ -1,0 +1,61 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.python-version
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node.js and frontend build artifacts
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+
+# Local databases and runtime data
+*.sqlite
+*.sqlite3
+*.db
+data/
+logs/
+*.log
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test and temporary artifacts
+.pytest_cache/
+.tmp/
+temp/
+
+# Local container and generated artifacts
+*.tar
+*.dump
+*.bak
