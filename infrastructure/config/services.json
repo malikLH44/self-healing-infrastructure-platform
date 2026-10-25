@@ -1,0 +1,10 @@
+
+{
+  "services": [
+    {
+      "name": "demo-service",
+      "url": "http://demo-service/",
+      "timeout_seconds": 3
+    }
+  ]
+}

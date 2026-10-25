@@ -1,0 +1,14 @@
+
+{
+  "policies": [
+    {
+      "service": "demo-service",
+      "enabled": true,
+      "action": "restart",
+      "trigger_after_failed_checks": 3,
+      "cooldown_seconds": 60,
+      "max_attempts": 3
+    }
+  ]
+}
+
