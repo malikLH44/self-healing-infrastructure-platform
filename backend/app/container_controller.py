@@ -4,30 +4,37 @@ from typing import Protocol
 logger = logging.getLogger(__name__)
 
 
-class ContainerController(Protocol):
-    """Interface for a restricted container controller."""
+class ContainerRestartBackend(Protocol):
+    """Interface for the component performing container restarts."""
 
-    def restart(self, service: str) -> None:
-        """Restart an explicitly authorized service."""
+    def restart_container(self, container_name: str) -> None:
+        """Restart a container identified by its actual container name."""
         ...
 
 
 class AllowlistedContainerController:
-    """Validates service names before delegating container operations."""
+    """Allow restarts only for explicitly authorized services."""
 
     def __init__(
         self,
-        delegate: ContainerController,
+        delegate: ContainerRestartBackend,
         allowed_services: dict[str, str],
     ) -> None:
         self._delegate = delegate
         self._allowed_services = allowed_services
 
     def restart(self, service: str) -> None:
-        if service not in self._allowed_services:
+        container_name = self._allowed_services.get(service)
+
+        if container_name is None:
             raise ValueError(
                 f"Service is not authorized for remediation: {service}"
             )
 
-        self._delegate.restart(service)
-        logger.info("Authorized restart requested: service=%s", service)
+        self._delegate.restart_container(container_name)
+
+        logger.info(
+            "Authorized restart requested: service=%s container=%s",
+            service,
+            container_name,
+        )
