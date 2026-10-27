@@ -5,6 +5,8 @@ services:
     restart: "no"
     ports:
       - "8080:80"
+    networks:
+      - ship-app
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
       interval: 10s
@@ -23,6 +25,9 @@ services:
     volumes:
       - ../config/services.json:/app/config/services.json:ro
       - ../config/remediation-policies.json:/app/config/remediation-policies.json:ro
+    networks:
+      - ship-app
+      - ship-docker-control
     healthcheck:
       test:
         - CMD
@@ -33,3 +38,24 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: ship-docker-proxy
+    restart: "no"
+    environment:
+      LOG_LEVEL: info
+      POST: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../proxy/haproxy.cfg.template:/usr/local/etc/haproxy/haproxy.cfg.template:ro
+    networks:
+      - ship-docker-control
+
+networks:
+  ship-app:
+    name: ship-app
+
+  ship-docker-control:
+    name: ship-docker-control
+    internal: true
