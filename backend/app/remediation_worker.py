@@ -1,4 +1,3 @@
-
 import logging
 import time
 from threading import Lock
@@ -64,6 +63,7 @@ class RemediationWorker:
             service,
             incident_id,
         )
+        
 
 
 remediation_worker = RemediationWorker()

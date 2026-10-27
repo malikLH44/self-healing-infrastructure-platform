@@ -3,6 +3,8 @@ import json
 import logging
 from pathlib import Path
 
+from app.remediation_worker import remediation_worker
+
 logger = logging.getLogger(__name__)
 
 POLICIES_PATH = Path("/app/config/remediation-policies.json")
@@ -106,6 +108,31 @@ class PolicyEngine:
             "action": policy["action"],
             "cooldown_seconds": policy["cooldown_seconds"],
             "max_attempts": policy["max_attempts"],
+        }
+
+    def evaluate_remediation(self, incident: dict) -> dict:
+        decision = self.evaluate(incident)
+
+        if not decision["allowed"]:
+            return decision
+
+        limits = remediation_worker.check_limits(
+            incident_id=incident["id"],
+            service=decision["service"],
+            cooldown_seconds=decision["cooldown_seconds"],
+            max_attempts=decision["max_attempts"],
+        )
+
+        return {
+            **decision,
+            "allowed": limits["allowed"],
+            "reason": limits["reason"],
+            "attempts": limits["attempts"],
+            **{
+                key: value
+                for key, value in limits.items()
+                if key not in ("allowed", "reason", "attempts")
+            },
         }
 
 
