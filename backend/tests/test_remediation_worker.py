@@ -52,6 +52,21 @@ class TestRemediationWorker(unittest.TestCase):
 
         self.assertTrue(result["allowed"])
 
+    def test_attempts_are_independent_between_incidents(self):
+        self.worker.record_attempt("incident-1", "demo-service")
+        self.worker.record_attempt("incident-1", "demo-service")
+        self.worker.record_attempt("incident-2", "demo-service")
+
+        first_incident = self.worker.check_limits(
+            "incident-1", "demo-service", 0, 3
+        )
+        second_incident = self.worker.check_limits(
+            "incident-2", "demo-service", 0, 3
+        )
+
+        self.assertEqual(first_incident["attempts"], 2)
+        self.assertEqual(second_incident["attempts"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
