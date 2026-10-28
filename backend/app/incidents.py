@@ -16,7 +16,7 @@ class IncidentManager:
         self._incidents: dict[str, dict] = {}
         self._active_by_service: dict[str, str] = {}
 
-    def observe(self, result: dict) -> None:
+    def observe(self, result: dict) -> dict | None:
         service_name = result["name"]
         status = result["status"]
         observed_at = result.get("checked_at", utc_now())
@@ -39,6 +39,7 @@ class IncidentManager:
                     "last_seen_at": observed_at,
                     "resolved_at": None,
                     "duration_seconds": None,
+                    "remediation_attempts": [],
                 }
 
                 self._incidents[incident_id] = incident
@@ -51,7 +52,9 @@ class IncidentManager:
                 incident["last_error"] = result.get("error")
                 incident["http_status"] = result.get("http_status")
 
-        elif active_id is not None:
+            return incident.copy()
+
+        if active_id is not None:
             incident = self._incidents[active_id]
             incident["status"] = "resolved"
             incident["resolved_at"] = observed_at
@@ -65,13 +68,40 @@ class IncidentManager:
             )
 
             del self._active_by_service[service_name]
+            return incident.copy()
+
+        return None
+
+
+    def record_remediation(
+        self,
+        incident_id: str,
+        result: dict,
+    ) -> dict:
+        incident = self._incidents.get(incident_id)
+
+        if incident is None:
+            raise KeyError(f"Unknown incident: {incident_id}")
+
+        attempt = {
+            "attempted_at": utc_now(),
+            "success": bool(result.get("success", False)),
+            "reason": result.get("reason", "unknown"),
+            "service": result.get("service", incident["service"]),
+            "action": result.get("action", "restart"),
+        }
+
+        incident.setdefault("remediation_attempts", []).append(attempt)
+
+        return attempt.copy()
+
 
     def list_incidents(self) -> list[dict]:
-        return list(self._incidents.values())
+        return [incident.copy() for incident in self._incidents.values()]
 
     def get_active_incidents(self) -> list[dict]:
         return [
-            incident
+            incident.copy()
             for incident in self._incidents.values()
             if incident["status"] == "open"
         ]

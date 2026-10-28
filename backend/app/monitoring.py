@@ -1,18 +1,36 @@
+
 import asyncio
 import json
 import logging
 import os
 from contextlib import suppress
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
+
+from app.container_controller import AllowlistedContainerController
+from app.docker_restart_backend import DockerRestartBackend
 from app.incidents import incident_manager
+from app.policy_engine import policy_engine
+from app.remediation_executor import RemediationExecutor
+from app.remediation_worker import remediation_worker
 
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path("/app/config/services.json")
 MONITORING_INTERVAL = int(
     os.getenv("SHIP_MONITORING_INTERVAL_SECONDS", "15")
+)
+
+# Explicit allowlist: logical service name -> authorized container name.
+remediation_executor = RemediationExecutor(
+    AllowlistedContainerController(
+        DockerRestartBackend(),
+        allowed_services={
+            "demo-service": "ship-demo-service",
+        },
+    )
 )
 
 
@@ -74,38 +92,84 @@ class MonitoringManager:
     async def stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
-
             with suppress(asyncio.CancelledError):
                 await self._task
-
             self._task = None
 
         logger.info("Monitoring manager stopped")
+
+    async def _remediate(self, incident: dict) -> None:
+        decision = policy_engine.evaluate_remediation(incident)
+
+        if not decision["allowed"]:
+            logger.debug(
+                "Remediation not allowed: service=%s reason=%s",
+                incident["service"],
+                decision["reason"],
+            )
+            return
+
+        # Record the attempt before execution so failures count toward
+        # the cooldown and maximum-attempt limits.
+        remediation_worker.record_attempt(
+            incident_id=incident["id"],
+            service=decision["service"],
+        )
+
+        result = await asyncio.to_thread(
+            remediation_executor.execute,
+            decision["service"],
+            decision["action"],
+        )
+
+
+        incident_manager.record_remediation(
+            incident_id=incident["id"],
+            result=result,
+        )
+
+        logger.info(
+            "Remediation result: incident=%s service=%s success=%s reason=%s",
+            incident["id"],
+            incident["service"],
+            result["success"],
+            result["reason"],
+        )
+
 
     async def check_all_services(self) -> None:
         try:
             services = load_services()
         except (OSError, ValueError, KeyError, TypeError) as error:
-            logger.error("Unable to load service configuration: %s", error)
+            logger.error(
+                "Unable to load service configuration: %s", error
+            )
             return
 
         for service in services:
             try:
-                # The HTTP check is blocking, so run it in a worker thread.
                 result = await asyncio.to_thread(check_service, service)
-                result["checked_at"] = (
-                    __import__("datetime").datetime.now(
-                        __import__("datetime").timezone.utc
-                    ).isoformat()
-                )
+                result["checked_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+
                 self.latest_status[service["name"]] = result
-                incident_manager.observe(result)
+
+                incident = incident_manager.observe(result)
 
                 logger.info(
                     "Service check completed: name=%s status=%s",
                     result["name"],
                     result["status"],
                 )
+
+                if (
+                    result["status"] != "healthy"
+                    and incident is not None
+                    and incident["status"] == "open"
+                ):
+                    await self._remediate(incident)
+
             except Exception:
                 logger.exception(
                     "Unexpected error while checking service %s",
