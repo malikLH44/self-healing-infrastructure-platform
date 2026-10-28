@@ -80,5 +80,20 @@ class TestPolicyEngine(unittest.TestCase):
         mock_limits.assert_not_called()
 
 
+    @patch("app.policy_engine.remediation_worker")
+    def test_blocks_remediation_after_real_attempt_limit(self, mock_worker):
+        mock_worker.check_limits.return_value = {
+            "allowed": False,
+            "reason": "max_attempts_reached",
+            "attempts": 3,
+        }
+
+        result = self.engine.evaluate_remediation(self.incident)
+
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "max_attempts_reached")
+        self.assertEqual(result["attempts"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
