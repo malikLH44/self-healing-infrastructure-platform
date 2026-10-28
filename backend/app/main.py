@@ -7,10 +7,14 @@ from app.monitoring import monitoring_manager
 from app.incidents import incident_manager
 
 from app.policy_engine import policy_engine
+from app.database import init_db
+
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     policy_engine.load_policies()
     await monitoring_manager.start()
     try:

@@ -19,6 +19,12 @@ services:
       context: ../../backend
       dockerfile: Dockerfile
     container_name: ship-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://ship:${SHIP_DB_PASSWORD}@postgres:5432/ship
+
     restart: "no"
     ports:
       - "8000:8000"
@@ -52,6 +58,24 @@ services:
     networks:
       - ship-docker-control
 
+  postgres:
+    image: postgres:17-alpine
+    container_name: ship-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ship
+      POSTGRES_USER: ship
+      POSTGRES_PASSWORD: ${SHIP_DB_PASSWORD:?SHIP_DB_PASSWORD must be set}
+    volumes:
+      - ship-postgres-data:/var/lib/postgresql/data
+    networks:
+      - ship-app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ship -d ship"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 networks:
   ship-app:
     name: ship-app
@@ -59,3 +83,8 @@ networks:
   ship-docker-control:
     name: ship-docker-control
     internal: true
+
+
+
+volumes:
+  ship-postgres-data:
