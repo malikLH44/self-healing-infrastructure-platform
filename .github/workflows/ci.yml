@@ -74,3 +74,10 @@ jobs:
             --env-file .env.example \
             -f infrastructure/compose/docker-compose.yml \
             config --quiet
+
+      - name: Build backend and frontend images
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f infrastructure/compose/docker-compose.yml \
+            build ship-api frontend
