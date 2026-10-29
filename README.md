@@ -152,6 +152,10 @@ Authentication, production hardening, and a full observability stack are not pre
 - Docker Engine access is highly privileged; the socket proxy is a restriction layer, not a guarantee of complete isolation.
 - Do not expose the prototype or its control interfaces directly to the public internet.
 
+## Dashboard Preview
+
+![SHIP monitoring dashboard](docs/images/ship-dashboard.png)
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
