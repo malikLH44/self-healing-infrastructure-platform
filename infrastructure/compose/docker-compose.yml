@@ -76,6 +76,28 @@ services:
       timeout: 3s
       retries: 5
 
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: ship-frontend
+    restart: unless-stopped
+    depends_on:
+      ship-api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    networks:
+      - ship-app
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+
 networks:
   ship-app:
     name: ship-app
