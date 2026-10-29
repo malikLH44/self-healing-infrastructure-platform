@@ -1,108 +1,157 @@
-# Self-Healing Infrastructure Platform
+# SHIP — Self-Healing Infrastructure Platform
 
-A secure self-healing infrastructure platform for automated incident detection, controlled remediation, observability, and resilience testing.
+**A containerized infrastructure monitoring and self-healing prototype built with FastAPI, PostgreSQL, Docker Compose, React, and TypeScript.**
 
-## Overview
+SHIP monitors configured services, detects failures, records incidents, executes controlled recovery actions, and verifies service health after remediation.
 
-The Self-Healing Infrastructure Platform (SHIP) aims to improve infrastructure reliability by monitoring services, detecting operational incidents, and executing controlled recovery actions.
+> **Project status:** Functional local prototype. The monitoring, incident lifecycle, automated container recovery, persistence, and dashboard have been tested locally. SHIP is not yet intended for production deployment.
 
-The platform will initially run in a Docker Compose environment and will later be extended to Kubernetes to explore cloud-native reliability and self-healing mechanisms.
+## Features
 
-Security, observability, and measurable recovery outcomes are core design principles.
-
-## Objectives
-
-- Monitor multiple configurable services and their health status.
-- Detect service failures and selected resource or network anomalies.
-- Apply controlled remediation policies with retry limits and cooldown periods.
-- Verify service recovery and record incident outcomes.
-- Provide a web dashboard for service status, incidents, remediation history, and recovery metrics.
-- Run automated resilience tests to evaluate recovery behavior.
-- Enforce authentication, access control, secure configuration, and audit logging.
-
-## Planned Features
-
-### Monitoring and Incident Detection
-- Service health checks and availability monitoring.
-- Resource usage and network connectivity checks.
-- Incident tracking with timestamps and diagnostic information.
-
-### Controlled Remediation
-- Policy-based remediation actions.
-- Bounded retries and cooldown periods.
-- Post-remediation health verification.
-- Protection against repeated remediation loops.
-
-### Observability and Dashboard
-- Centralized incident and remediation history.
-- Service status and operational metrics.
-- Logs and incident correlation.
-
-### Resilience Testing
-- Automated failure scenarios.
-- Recovery verification.
-- Measurement of detection and recovery times.
-
-### Security
-- Authenticated dashboard access.
-- Role-based authorization where appropriate.
-- Secrets kept out of source control.
-- Auditable remediation actions and restricted execution permissions.
-
-## Technology Stack
-
-The initial implementation is planned around:
-
-| Component | Technology |
-|---|---|
-| Container orchestration | Docker Compose |
-| Backend API | Python, FastAPI |
-| Persistent storage | PostgreSQL |
-| Metrics | Prometheus |
-| Dashboards and visualization | Grafana |
-| Log aggregation | Loki |
-| Frontend | React, TypeScript, Vite |
-| Testing | pytest |
-| CI/CD | GitHub Actions |
-
-The stack may evolve as implementation and testing reveal additional requirements.
+- **Service monitoring:** HTTP health checks for configured services.
+- **Incident management:** Detection, lifecycle tracking, and PostgreSQL persistence.
+- **Automated remediation:** Policy-controlled recovery actions with retry and cooldown settings.
+- **Recovery verification:** Health checks after remediation to determine whether a service has recovered.
+- **Operational history:** Incident details and remediation attempts, including success and failure outcomes.
+- **Web dashboard:** Service health, incident history, and recovery statistics.
+- **REST API:** FastAPI endpoints for monitoring data and dashboard metrics.
+- **Restricted Docker access:** A Docker Socket Proxy separates Docker Engine access from the dashboard-facing API.
+- **Containerized environment:** Docker Compose for the backend, database, proxy, and monitored demo service.
 
 ## Architecture
 
-The platform is designed around a central controller with separate API and remediation-worker responsibilities.
+```mermaid
+flowchart TD
+    A[Monitored HTTP Services] --> B[Monitoring and Health Checks]
+    B --> C[Incident Detection]
+    C --> D[Remediation Policy Engine]
+    C --> E[(PostgreSQL)]
+    D --> F[Controlled Recovery]
+    F --> G[Docker Socket Proxy]
+    G --> A
+    F --> E
+    E --> H[FastAPI]
+    H --> I[React and TypeScript Dashboard]
+```
 
-The API will serve the dashboard and expose authorized platform operations. The worker will evaluate service health, detect incidents, apply configured policies, and verify recovery.
+The current implementation runs locally using Docker Compose. Kubernetes deployment and an extended observability stack remain future improvements.
 
-The architecture will prioritize least privilege, explicit remediation policies, bounded retries, and auditable actions. Access to the container engine will be isolated from the public-facing API.
+## Technology Stack
 
-See [Architecture](docs/architecture.md) for the planned design.
+| Area | Technology |
+|---|---|
+| Backend API | Python, FastAPI |
+| Persistence | PostgreSQL, SQLAlchemy |
+| Containerization | Docker, Docker Compose |
+| Docker access isolation | Docker Socket Proxy |
+| Frontend | React, TypeScript, Vite |
+| UI icons | Lucide React |
+| Testing | pytest |
 
-## Roadmap
+## Prerequisites
 
-1. Define the architecture, security principles, and development workflow.
-2. Implement the initial Docker Compose environment and service monitoring.
-3. Add incident detection, controlled remediation, and recovery verification.
-4. Build the dashboard and persist incident history.
-5. Add automated resilience tests and CI checks.
-6. Extend observability and evaluate a Kubernetes deployment.
+- Docker Desktop with Docker Compose
+- Node.js and npm
+- Git
 
-See [Roadmap](docs/roadmap.md) for further details.
+## Quick Start
 
-## Documentation
+### 1. Clone the repository
 
-- [Architecture](docs/architecture.md)
-- [Roadmap](docs/roadmap.md)
-- [Security](docs/security.md)
-- [Development Guide](docs/development.md)
-- [Security Policy](SECURITY.md)
-- [Contributing Guide](CONTRIBUTING.md)
+```bash
+git clone https://github.com/malikLH44/self-healing-infrastructure-platform.git
+cd self-healing-infrastructure-platform
+```
 
-## Project Status
+### 2. Configure the environment
 
-**Status: Planning and initial design.**
+Create your local environment file:
 
-The repository currently contains the project's initial documentation. Features listed above are planned and should not be considered implemented until their corresponding code and tests are available.
+```cmd
+copy .env.example .env
+```
+
+Open `.env` and set `SHIP_DB_PASSWORD` to a strong local password. Do not commit `.env` or share real credentials.
+
+### 3. Start the backend infrastructure
+
+From the repository root, run:
+
+```bash
+docker compose --env-file .env -f infrastructure/compose/docker-compose.yml up -d --build
+```
+
+Check the container status:
+
+```bash
+docker compose --env-file .env -f infrastructure/compose/docker-compose.yml ps
+```
+
+### 4. Start the frontend
+
+Open a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the dashboard at **http://localhost:5173**.
+
+### 5. Explore the API
+
+- Dashboard API documentation: http://localhost:8000/docs
+- API health: http://localhost:8000/health
+- Demo service: http://localhost:8080
+
+## Demonstrating Self-Healing
+
+With the local environment running:
+
+1. Open the dashboard and confirm the demo service is healthy.
+2. Stop the demo container to simulate a service failure:
+
+   ```bash
+   docker stop ship-demo-service
+   ```
+
+3. Observe the incident detection and automatic remediation.
+4. Verify that the container returns to operation and the incident is resolved in the dashboard.
+
+The recovery process is asynchronous; allow the configured monitoring and recovery checks to run. Do not manually restart the demo container during the test.
+
+## Production Build
+
+From the `frontend/` directory:
+
+```bash
+npm run build
+```
+
+The frontend production build has been validated locally.
+
+## Current Limitations and Roadmap
+
+SHIP is an actively developed portfolio project. The current version focuses on a working local monitoring and recovery loop.
+
+Planned improvements include:
+
+- Containerizing the frontend for a unified deployment workflow.
+- GitHub Actions CI for automated backend tests and frontend builds.
+- Dashboard screenshots and repeatable resilience-test reports.
+- Expanded observability and recovery performance measurements.
+- Evaluation of a Kubernetes deployment.
+
+Authentication, production hardening, and a full observability stack are not presented as completed features.
+
+## Security Notes
+
+- Run SHIP locally in an isolated development environment.
+- Keep secrets in `.env`, never in source control.
+- Docker Engine access is highly privileged; the socket proxy is a restriction layer, not a guarantee of complete isolation.
+- Do not expose the prototype or its control interfaces directly to the public internet.
 
 ## License
 
-The project's license will be specified once the license file has been finalized.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
