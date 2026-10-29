@@ -7,8 +7,10 @@ from app.monitoring import monitoring_manager
 from app.incidents import incident_manager
 
 from app.policy_engine import policy_engine
+
 from app.database import init_db
 
+from fastapi.middleware.cors import CORSMiddleware
 
 
 
@@ -31,6 +33,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
@@ -78,6 +87,58 @@ def get_incidents():
 def get_active_incidents():
     return {
         "incidents": incident_manager.get_active_incidents()
+    }
+
+
+@app.get("/dashboard/summary")
+def get_dashboard_summary():
+    services = list(monitoring_manager.latest_status.values())
+    incidents = incident_manager.list_incidents()
+
+    healthy_services = sum(
+        1 for service in services if service["status"] == "healthy"
+    )
+    unhealthy_services = len(services) - healthy_services
+
+    active_incidents = sum(
+        1 for incident in incidents if incident["status"] == "open"
+    )
+    resolved_incidents = sum(
+        1 for incident in incidents if incident["status"] == "resolved"
+    )
+
+    remediation_attempts = [
+        attempt
+        for incident in incidents
+        for attempt in incident.get("remediation_attempts", [])
+    ]
+
+    successful_remediations = sum(
+        1 for attempt in remediation_attempts if attempt["success"]
+    )
+    total_remediations = len(remediation_attempts)
+
+    return {
+        "services": {
+            "total": len(services),
+            "healthy": healthy_services,
+            "unhealthy": unhealthy_services,
+        },
+        "incidents": {
+            "active": active_incidents,
+            "resolved": resolved_incidents,
+            "total": len(incidents),
+        },
+        "remediations": {
+            "total": total_remediations,
+            "successful": successful_remediations,
+            "failed": total_remediations - successful_remediations,
+            "success_rate": (
+                round(successful_remediations / total_remediations * 100, 2)
+                if total_remediations
+                else None
+            ),
+        },
     }
 
 
