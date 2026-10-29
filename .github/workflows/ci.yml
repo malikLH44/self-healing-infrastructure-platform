@@ -68,6 +68,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+          - name: Set up Python for script validation
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Validate resilience test script
+        run: python -m py_compile scripts/test_resilience.py
+
       - name: Validate Compose configuration
         run: |
           docker compose \

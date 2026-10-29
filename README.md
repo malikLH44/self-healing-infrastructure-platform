@@ -121,6 +121,30 @@ With the local environment running:
 
 The recovery process is asynchronous; allow the configured monitoring and recovery checks to run. Do not manually restart the demo container during the test.
 
+### Automated Resilience Test
+
+SHIP includes an automated end-to-end resilience test that validates the self-healing process.
+
+Run the test from the repository root:
+
+```bash
+python scripts/test_resilience.py
+```
+
+The test performs the following steps:
+
+1. Checks that the SHIP API and demo service are healthy.
+2. Stops the demo container to simulate a failure.
+3. Waits for incident detection and automatic remediation.
+4. Verifies that the service has recovered and the incident is resolved.
+5. Reports the detection latency, incident duration, total recovery time, and remediation outcome.
+
+A successful execution reports `"result": "PASS"`.
+
+**Requirements:** The SHIP Docker Compose stack must be running, and the local Docker CLI must have permission to manage the demo container.
+
+Run this test only in a controlled environment where stopping the demo service is safe. If the test fails, the script attempts to restore the demo container.
+
 ## Production Build
 
 From the `frontend/` directory:
