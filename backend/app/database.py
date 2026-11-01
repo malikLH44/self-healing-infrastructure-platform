@@ -1,4 +1,3 @@
-
 import os
 
 from sqlalchemy import create_engine, text
@@ -44,6 +43,17 @@ def init_db() -> None:
                 CREATE UNIQUE INDEX IF NOT EXISTS
                 uq_incidents_one_open_per_service
                 ON incidents (service)
+                WHERE status = 'open'
+                """
+            )
+
+        )
+        connection.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                uq_resource_alerts_one_open_per_service_resource
+                ON resource_alerts (service, resource)
                 WHERE status = 'open'
                 """
             )

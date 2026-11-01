@@ -12,6 +12,8 @@ from app.database import init_db
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.resource_alerts import resource_alert_manager
+
 
 
 @asynccontextmanager
@@ -83,12 +85,18 @@ def get_incidents():
     }
 
 
-@app.get("/incidents/active")
-def get_active_incidents():
+@app.get("/resource-alerts")
+def get_resource_alerts():
     return {
-        "incidents": incident_manager.get_active_incidents()
+        "alerts": resource_alert_manager.list_alerts()
     }
 
+
+@app.get("/resource-alerts/active")
+def get_active_resource_alerts():
+    return {
+        "alerts": resource_alert_manager.get_active_alerts()
+    }
 
 @app.get("/dashboard/summary")
 def get_dashboard_summary():

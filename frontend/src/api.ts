@@ -26,8 +26,11 @@ export interface MonitoredService {
   status: string;
   http_status: number | null;
   checked_at: string | null;
+  cpu_percent: number | null;
+  memory_percent: number | null;
+  memory_usage_bytes: number | null;
+  memory_limit_bytes: number | null;
 }
-
 export interface ServicesResponse {
   services: MonitoredService[];
 }
@@ -80,4 +83,30 @@ export interface IncidentsResponse {
 
 export function getIncidents() {
   return fetchApi<IncidentsResponse>("/incidents");
+}
+
+export interface ResourceAlert {
+  id: string;
+  service: string;
+  resource: "cpu" | "memory";
+  status: "open" | "resolved";
+  threshold_percent: number;
+  observed_percent: number;
+  consecutive_checks: number;
+  detected_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+  duration_seconds: number | null;
+}
+
+export interface ResourceAlertsResponse {
+  alerts: ResourceAlert[];
+}
+
+export function getResourceAlerts() {
+  return fetchApi<ResourceAlertsResponse>("/resource-alerts");
+}
+
+export function getActiveResourceAlerts() {
+  return fetchApi<ResourceAlertsResponse>("/resource-alerts/active");
 }

@@ -23,15 +23,16 @@ import {
   getDashboardSummary,
   getServices,
   getIncidents,
+  getResourceAlerts,
   type DashboardSummary,
   type MonitoredService,
   type Incident,
+  type ResourceAlert,
 } from "./api";
-
-
 
 function App() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [resourceAlerts, setResourceAlerts] = useState<ResourceAlert[]>([]);
 
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [services, setServices] = useState<MonitoredService[]>([]);
@@ -42,15 +43,23 @@ function App() {
 
 const loadDashboard = useCallback(async () => {
   try {
-    const [summaryData, servicesData, incidentsData] = await Promise.all([
+    const [
+      summaryData,
+      servicesData,
+      incidentsData,
+      resourceAlertsData,
+    ] = await Promise.all([
       getDashboardSummary(),
       getServices(),
       getIncidents(),
+      getResourceAlerts(),
     ]);
 
     setSummary(summaryData);
     setServices(servicesData.services);
     setIncidents(incidentsData.incidents);
+    setResourceAlerts(resourceAlertsData.alerts);
+
     setLastUpdated(new Date());
     setError(null);
   } catch (err) {
@@ -63,7 +72,6 @@ const loadDashboard = useCallback(async () => {
     setLoading(false);
   }
 }, []);
-
 
   useEffect(() => {
     void loadDashboard();
@@ -355,7 +363,8 @@ const loadDashboard = useCallback(async () => {
                   <tr>
                     <th>SERVICE</th>
                     <th>STATUS</th>
-                    <th>LATENCY</th>
+                    <th>CPU</th>
+                    <th>MEMORY</th>
                     <th>LAST CHECK</th>
                   </tr>
                 </thead>
@@ -387,7 +396,27 @@ const loadDashboard = useCallback(async () => {
                       </span>
 
                       </td>
-                      <td className="latency">—</td>
+                     <td className="latency">
+  {service.cpu_percent != null
+    ? `${service.cpu_percent.toFixed(1)}%`
+    : "—"}
+</td>
+
+                    <td className="latency">
+                      <div>
+                        {service.memory_percent != null
+                          ? `${service.memory_percent.toFixed(2)}%`
+                          : "—"}
+                      </div>
+
+                      {service.memory_usage_bytes != null
+                        ? (
+                          <span className="muted">
+                            {(service.memory_usage_bytes / (1024 * 1024)).toFixed(1)} MB
+                          </span>
+                        )
+                        : null}
+                    </td>
                       <td className="muted">
                               {service.checked_at
                                 ? new Date(service.checked_at).toLocaleTimeString()
@@ -570,6 +599,97 @@ const loadDashboard = useCallback(async () => {
             </table>
           </div>
         </section>
+
+<section className="panel incidents-panel" id="resource-alerts">
+  <div className="panel-header">
+    <div>
+      <h3>Resource Alerts</h3>
+      <p>CPU and memory threshold monitoring</p>
+    </div>
+    <div className="metric-icon blue">
+      <Activity size={18} />
+    </div>
+  </div>
+
+  <div className="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>RESOURCE</th>
+          <th>SERVICE</th>
+          <th>OBSERVED</th>
+          <th>THRESHOLD</th>
+          <th>STATUS</th>
+          <th>DETECTED</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {resourceAlerts.length === 0 ? (
+          <tr>
+            <td colSpan={6} className="muted">
+              No resource alerts recorded.
+            </td>
+          </tr>
+        ) : (
+          resourceAlerts.map((alert) => {
+            const active = alert.status === "open";
+
+            return (
+              <tr key={alert.id}>
+                <td>
+                  <strong>{alert.resource.toUpperCase()}</strong>
+                </td>
+
+                <td>{alert.service}</td>
+
+                <td className="latency">
+                  {alert.observed_percent.toFixed(2)}%
+                </td>
+
+                <td>
+                  {alert.threshold_percent.toFixed(1)}%
+                </td>
+
+                <td>
+                  <span
+                    className={`status-pill ${
+                      active ? "unhealthy" : "healthy"
+                    }`}
+                  >
+                    {active ? (
+                      <AlertTriangle size={13} />
+                    ) : (
+                      <CheckCircle2 size={13} />
+                    )}
+                    {active ? "Active" : "Resolved"}
+                  </span>
+                </td>
+
+                <td className="muted">
+                  {new Date(alert.detected_at).toLocaleString()}
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+
+  <div className="panel-footer">
+    <span>
+      <span className="status-dot" />
+      {resourceAlerts.filter(
+        (alert) => alert.status === "open",
+      ).length} active resource alert(s)
+    </span>
+    <span className="muted">
+      {resourceAlerts.length} recorded
+    </span>
+  </div>
+</section>
+
 
         <footer className="page-footer">
           <span>SHIP <span className="footer-divider">/</span> Self-Healing Infrastructure Platform</span>

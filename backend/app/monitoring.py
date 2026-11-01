@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
+from app.resource_alerts import resource_alert_manager
+
 
 from app.container_controller import AllowlistedContainerController
 from app.docker_restart_backend import DockerRestartBackend
@@ -15,8 +17,10 @@ from app.incidents import incident_manager
 from app.policy_engine import policy_engine
 from app.remediation_executor import RemediationExecutor
 from app.remediation_worker import remediation_worker
+from app.docker_stats_backend import DockerStatsBackend
 
 logger = logging.getLogger(__name__)
+docker_stats_backend = DockerStatsBackend()
 
 CONFIG_PATH = Path("/app/config/services.json")
 MONITORING_INTERVAL = int(
@@ -148,13 +152,74 @@ class MonitoringManager:
 
         for service in services:
             try:
+                # 1. Perform the HTTP health check.
                 result = await asyncio.to_thread(check_service, service)
+
+                # 2. Collect Docker CPU and memory statistics.
+                try:
+                    resource_stats = await asyncio.to_thread(
+                        docker_stats_backend.get_stats,
+                        service["name"],
+                    )
+
+                    if resource_stats:
+                        result.update(resource_stats)
+
+                except Exception:
+                    logger.warning(
+                        "Unable to collect resource metrics for service %s",
+                        service["name"],
+                        exc_info=True,
+                    )
+
+                # 3. Evaluate configured resource thresholds.
+                thresholds = service.get("resource_thresholds", {})
+
+                if thresholds:
+                    for resource, metric_key in (
+                        ("cpu", "cpu_percent"),
+                        ("memory", "memory_percent"),
+                    ):
+                        threshold_percent = thresholds.get(metric_key)
+
+                        if threshold_percent is None:
+                            continue
+
+                        try:
+                            alert = resource_alert_manager.observe(
+                                service=service["name"],
+                                resource=resource,
+                                observed_percent=result.get(metric_key),
+                                threshold_percent=threshold_percent,
+                                required_checks=thresholds.get(
+                                    "consecutive_checks", 3
+                                ),
+                            )
+
+                            if alert and alert["status"] == "resolved":
+                                logger.info(
+                                    "Resource alert resolved: "
+                                    "service=%s resource=%s",
+                                    service["name"],
+                                    resource,
+                                )
+
+                        except Exception:
+                            logger.exception(
+                                "Resource alert evaluation failed: "
+                                "service=%s resource=%s",
+                                service["name"],
+                                resource,
+                            )
+
+                # 4. Update monitoring results.
                 result["checked_at"] = datetime.now(
                     timezone.utc
                 ).isoformat()
 
                 self.latest_status[service["name"]] = result
 
+                # 5. Preserve the existing HTTP incident mechanism.
                 incident = incident_manager.observe(result)
 
                 logger.info(

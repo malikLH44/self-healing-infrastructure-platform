@@ -49,3 +49,34 @@ class RemediationAttempt(Base):
     incident: Mapped["Incident"] = relationship(
         back_populates="remediation_attempts"
     )
+
+class ResourceAlert(Base):
+    __tablename__ = "resource_alerts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+
+    service: Mapped[str] = mapped_column(String(100), index=True)
+    resource: Mapped[str] = mapped_column(String(20), index=True)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+
+    threshold_percent: Mapped[float] = mapped_column(Float)
+    observed_percent: Mapped[float] = mapped_column(Float)
+    consecutive_checks: Mapped[int] = mapped_column(
+        Integer,
+        default=3,
+    )
+
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    duration_seconds: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
