@@ -1,17 +1,21 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
-
-from app.monitoring import monitoring_manager
-
-from app.incidents import incident_manager
-
-from app.policy_engine import policy_engine
-
-from app.database import init_db
-
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
+from app.auth import (
+    authenticate_user,
+    create_access_token,
+    create_admin_user,
+    get_current_user,
+    get_db,
+)
+from app.database import init_db
+from app.incidents import incident_manager
+from app.monitoring import monitoring_manager
+from app.policy_engine import policy_engine
 from app.resource_alerts import resource_alert_manager
 
 
@@ -19,6 +23,7 @@ from app.resource_alerts import resource_alert_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    create_admin_user()
     policy_engine.load_policies()
     await monitoring_manager.start()
     try:
@@ -39,7 +44,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -58,15 +63,50 @@ def health_check():
         "service": "ship-api",
     }
 
+@app.post("/auth/login")
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    user = authenticate_user(
+        db,
+        form_data.username,
+        form_data.password,
+    )
 
-@app.get("/services")
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(user.username)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
+
+
+@app.get("/auth/me")
+def read_current_user(
+    current_user=Depends(get_current_user),
+):
+    return {
+        "username": current_user.username,
+        "is_active": current_user.is_active,
+    }
+
+
+@app.get("/services", dependencies=[Depends(get_current_user)])
 def get_services():
     return {
         "services": list(monitoring_manager.latest_status.values())
     }
 
 
-@app.get("/services/{service_name}")
+@app.get("/services/{service_name}", dependencies=[Depends(get_current_user)])
 def get_service(service_name: str):
     result = monitoring_manager.latest_status.get(service_name)
 
@@ -78,27 +118,27 @@ def get_service(service_name: str):
 
     return result
 
-@app.get("/incidents")
+@app.get("/incidents", dependencies=[Depends(get_current_user)])
 def get_incidents():
     return {
         "incidents": incident_manager.list_incidents()
     }
 
 
-@app.get("/resource-alerts")
+@app.get("/resource-alerts", dependencies=[Depends(get_current_user)])
 def get_resource_alerts():
     return {
         "alerts": resource_alert_manager.list_alerts()
     }
 
 
-@app.get("/resource-alerts/active")
+@app.get("/resource-alerts/active", dependencies=[Depends(get_current_user)])
 def get_active_resource_alerts():
     return {
         "alerts": resource_alert_manager.get_active_alerts()
     }
 
-@app.get("/dashboard/summary")
+@app.get("/dashboard/summary", dependencies=[Depends(get_current_user)])
 def get_dashboard_summary():
     services = list(monitoring_manager.latest_status.values())
     incidents = incident_manager.list_incidents()
@@ -150,7 +190,7 @@ def get_dashboard_summary():
     }
 
 
-@app.get("/incidents/{incident_id}/policy")
+@app.get("/incidents/{incident_id}/policy", dependencies=[Depends(get_current_user)])
 def evaluate_incident_policy(incident_id: str):
     incident = next(
         (

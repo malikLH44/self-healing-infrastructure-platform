@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Terminal,
   Zap,
+  LogOut,
 } from "lucide-react";
 import "./App.css";
 
@@ -28,9 +29,21 @@ import {
   type MonitoredService,
   type Incident,
   type ResourceAlert,
+  ApiError,
+  clearAccessToken,
+  getAccessToken,
+  getCurrentUser,
 } from "./api";
 
+import Login from "./Login";
+
+
 function App() {
+  const [authChecking, setAuthChecking] = useState(
+  () => Boolean(getAccessToken()),
+);
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [resourceAlerts, setResourceAlerts] = useState<ResourceAlert[]>([]);
 
@@ -40,6 +53,59 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  useEffect(() => {
+  const token = getAccessToken();
+
+  if (!token) {
+    return;
+  }
+
+  let cancelled = false;
+
+  async function validateSession() {
+    try {
+      const user = await getCurrentUser();
+
+      if (!cancelled) {
+        setCurrentUsername(user.username);
+        setIsAuthenticated(true);
+      }
+    } catch {
+      clearAccessToken();
+    } finally {
+      if (!cancelled) {
+        setAuthChecking(false);
+      }
+    }
+  }
+
+  void validateSession();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+const handleAuthenticated = useCallback((username: string) => {
+  setCurrentUsername(username);
+  setIsAuthenticated(true);
+}, []);
+
+const handleLogout = useCallback(() => {
+  clearAccessToken();
+
+  setIsAuthenticated(false);
+  setCurrentUsername(null);
+
+  setSummary(null);
+  setServices([]);
+  setIncidents([]);
+  setResourceAlerts([]);
+  setLastUpdated(null);
+
+  setError(null);
+  setLoading(true);
+}, []);
 
 const loadDashboard = useCallback(async () => {
   try {
@@ -63,26 +129,60 @@ const loadDashboard = useCallback(async () => {
     setLastUpdated(new Date());
     setError(null);
   } catch (err) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Unable to connect to the SHIP API.",
-    );
-  } finally {
+  if (err instanceof ApiError && err.status === 401) {
+    clearAccessToken();
+    setIsAuthenticated(false);
+    setCurrentUsername(null);
+    setError(null);
+    return;
+  }
+
+  setError(
+    err instanceof Error
+      ? err.message
+      : "Unable to connect to the SHIP API.",
+  );
+} finally {
     setLoading(false);
   }
 }, []);
 
-  useEffect(() => {
+useEffect(() => {
+  if (!isAuthenticated) {
+    return;
+  }
+
+  void loadDashboard();
+
+  const interval = window.setInterval(() => {
     void loadDashboard();
+  }, 15000);
 
-    const interval = window.setInterval(() => {
-      void loadDashboard();
-    }, 15000);
+  return () => window.clearInterval(interval);
+}, [isAuthenticated, loadDashboard]);
 
-    return () => window.clearInterval(interval);
-  }, [loadDashboard]);
+if (authChecking) {
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <div className="login-brand">
+          <div className="login-brand-icon">
+            <ShieldCheck size={27} />
+          </div>
+          <div>
+            <h1>SHIP</h1>
+            <span>Infrastructure Control</span>
+          </div>
+        </div>
+        <p>Checking your secure session...</p>
+      </section>
+    </main>
+  );
+}
 
+if (!isAuthenticated) {
+  return <Login onAuthenticated={handleAuthenticated} />;
+}
 
   return (
     <div className="app-shell">
@@ -149,7 +249,7 @@ const loadDashboard = useCallback(async () => {
           <div className="user-profile">
             <div className="avatar">MK</div>
             <div className="profile-info">
-              <strong>SHIP Admin</strong>
+              <strong>{currentUsername ?? "SHIP Admin"}</strong>
               <span>Infrastructure operator</span>
             </div>
             <ChevronDown size={16} />
@@ -175,6 +275,15 @@ const loadDashboard = useCallback(async () => {
           title="Refresh dashboard"
         >
           <RefreshCw size={17} />
+        </button>
+        <button
+          className="logout-button"
+          type="button"
+          onClick={handleLogout}
+          title="Sign out"
+        >
+          <LogOut size={15} />
+          <span>Sign out</span>
         </button>
 
             <div className="avatar small-avatar">MK</div>

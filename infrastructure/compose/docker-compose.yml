@@ -24,6 +24,10 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://ship:${SHIP_DB_PASSWORD}@postgres:5432/ship
+      SHIP_JWT_SECRET: ${SHIP_JWT_SECRET:?SHIP_JWT_SECRET must be set}
+      SHIP_ADMIN_USERNAME: ${SHIP_ADMIN_USERNAME:?SHIP_ADMIN_USERNAME must be set}
+      SHIP_ADMIN_PASSWORD: ${SHIP_ADMIN_PASSWORD:?SHIP_ADMIN_PASSWORD must be set}
+      SHIP_ACCESS_TOKEN_EXPIRE_MINUTES: ${SHIP_ACCESS_TOKEN_EXPIRE_MINUTES:-30}
 
     restart: "no"
     ports:
