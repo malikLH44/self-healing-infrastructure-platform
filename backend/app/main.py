@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     policy_engine.load_policies()
     await monitoring_manager.start()
     try:
-        yield
+       yield
     finally:
         await monitoring_manager.stop()
 

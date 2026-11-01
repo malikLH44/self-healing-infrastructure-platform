@@ -82,10 +82,17 @@ jobs:
         run: docker compose --env-file .env.example -f infrastructure/compose/docker-compose.yml build ship-api frontend
 
 
+
   resilience-e2e:
     name: End-to-end self-healing test
     runs-on: ubuntu-latest
     timeout-minutes: 12
+
+    env:
+      SHIP_JWT_SECRET: "ci-only-ship-jwt-secret-key-for-github-actions-2026"
+      SHIP_ADMIN_USERNAME: "ci-admin"
+      SHIP_ADMIN_PASSWORD: "CI-only-Ship-Admin-Password-2026!"
+      SHIP_ACCESS_TOKEN_EXPIRE_MINUTES: "5"
 
     steps:
       - name: Checkout repository
@@ -103,14 +110,25 @@ jobs:
       - name: Wait for API and demo service
         run: |
           for attempt in $(seq 1 60); do
-            if curl -fsS http://localhost:8000/health >/dev/null 2>&1 &&
-               curl -fsS http://localhost:8000/services/demo-service |
-               python -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("status") == "healthy" else 1)' 2>/dev/null; then
-              echo "SHIP API and demo service are ready."
-              exit 0
+            if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
+              token="$(curl -fsS -X POST http://localhost:8000/auth/login \
+                -H 'Content-Type: application/x-www-form-urlencoded' \
+                --data-urlencode "username=${SHIP_ADMIN_USERNAME}" \
+                --data-urlencode "password=${SHIP_ADMIN_PASSWORD}" \
+                | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])' 2>/dev/null)" || token=""
+
+              if [ -n "$token" ] && \
+                curl -fsS -H "Authorization: Bearer ${token}" \
+                http://localhost:8000/services/demo-service |
+                python -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("status") == "healthy" else 1)' 2>/dev/null; then
+                echo "SHIP API and demo service are ready."
+                exit 0
+              fi
             fi
+
             sleep 2
           done
+
           echo "SHIP did not become ready in time."
           docker compose --env-file .env.example -f infrastructure/compose/docker-compose.yml logs --no-color
           exit 1

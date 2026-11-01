@@ -1,23 +1,88 @@
-"""Run a controlled end-to-end SHIP self-healing test."""
-
 import json
+import os
 import subprocess
 import sys
 import time
+
 from datetime import datetime, timezone
-from urllib.request import urlopen
+from pathlib import Path
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 API_BASE_URL = "http://localhost:8000"
 SERVICE_NAME = "demo-service"
 CONTAINER_NAME = "ship-demo-service"
 TIMEOUT_SECONDS = 180
 POLL_INTERVAL_SECONDS = 2
+ACCESS_TOKEN = None
+
+
+def load_local_env():
+    """Load local .env values without overriding existing environment."""
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+
+        os.environ.setdefault(
+            key.strip(),
+            value.strip().strip('"').strip("'"),
+        )
+
+
+def get_access_token():
+    """Authenticate against the SHIP API and return a JWT."""
+    username = os.getenv("SHIP_ADMIN_USERNAME")
+    password = os.getenv("SHIP_ADMIN_PASSWORD")
+
+    if not username or not password:
+        raise RuntimeError(
+            "SHIP_ADMIN_USERNAME and SHIP_ADMIN_PASSWORD are required."
+        )
+
+    request = Request(
+        f"{API_BASE_URL}/auth/login",
+        data=urlencode({
+            "username": username,
+            "password": password,
+        }).encode("utf-8"),
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+
+    with urlopen(request, timeout=10) as response:
+        data = json.loads(response.read().decode("utf-8"))
+
+    token = data.get("access_token")
+
+    if not token:
+        raise RuntimeError("Authentication did not return an access token.")
+
+    return token
 
 
 def get_json(path):
-    """Fetch and decode a JSON response from the SHIP API."""
+    """Fetch and decode an authenticated SHIP API response."""
     url = f"{API_BASE_URL}{path}"
-    with urlopen(url, timeout=5) as response:
+
+    headers = {}
+
+    if ACCESS_TOKEN:
+        headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
+
+    request = Request(url, headers=headers)
+
+    with urlopen(request, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -38,6 +103,9 @@ def main():
     test_passed = False
 
     try:
+        global ACCESS_TOKEN
+        load_local_env()
+        ACCESS_TOKEN = get_access_token()
         health = get_json("/health")
         if health.get("status") != "healthy":
             raise RuntimeError("SHIP API is not healthy.")
