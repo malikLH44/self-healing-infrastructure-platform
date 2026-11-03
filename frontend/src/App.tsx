@@ -8,12 +8,9 @@ import {
   ChevronDown,
   Clock3,
   LayoutDashboard,
-  Network,
   RefreshCw,
   Server,
-  Settings,
   ShieldCheck,
-  Terminal,
   Zap,
   LogOut,
 } from "lucide-react";
@@ -219,22 +216,6 @@ if (!isAuthenticated) {
           <a className="nav-item" href="#remediations">
             <Zap size={18} />
             Remediations
-          </a>
-        </nav>
-
-        <div className="nav-label system-label">SYSTEM</div>
-        <nav className="navigation">
-          <a className="nav-item" href="#infrastructure">
-            <Network size={18} />
-            Infrastructure
-          </a>
-          <a className="nav-item" href="#logs">
-            <Terminal size={18} />
-            Activity logs
-          </a>
-          <a className="nav-item" href="#settings">
-            <Settings size={18} />
-            Settings
           </a>
         </nav>
 
