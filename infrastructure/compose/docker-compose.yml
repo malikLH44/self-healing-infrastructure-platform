@@ -49,6 +49,47 @@ services:
       retries: 3
       start_period: 10s
 
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: ship-prometheus
+    restart: unless-stopped
+    depends_on:
+      ship-api:
+        condition: service_healthy
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ship-prometheus-data:/prometheus
+    networks:
+      - ship-app
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    container_name: ship-grafana
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?GRAFANA_ADMIN_USER must be set}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ship-grafana-data:/var/lib/grafana
+      - ../config/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - ship-app
+
+
   docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: ship-docker-proxy
@@ -114,3 +155,5 @@ networks:
 
 volumes:
   ship-postgres-data:
+  ship-prometheus-data:
+  ship-grafana-data:

@@ -17,6 +17,16 @@ from app.incidents import incident_manager
 from app.monitoring import monitoring_manager
 from app.policy_engine import policy_engine
 from app.resource_alerts import resource_alert_manager
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import Response
+from time import perf_counter
+
+from app.prometheus_metrics import (
+    CONTENT_TYPE_LATEST,
+    generate_metrics,
+    record_http_request,
+    refresh_ship_metrics,
+)
 
 
 
@@ -40,6 +50,31 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def collect_prometheus_metrics(request: Request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    started_at = perf_counter()
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        path = getattr(route, "path", "unmatched")
+
+        record_http_request(
+            method=request.method,
+            path=path,
+            status_code=status_code,
+            duration_seconds=perf_counter() - started_at,
+        )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -62,6 +97,21 @@ def health_check():
         "status": "healthy",
         "service": "ship-api",
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics():
+    refresh_ship_metrics(
+        services=list(monitoring_manager.latest_status.values()),
+        incidents=incident_manager.list_incidents(),
+        alerts=resource_alert_manager.list_alerts(),
+    )
+
+    return Response(
+        content=generate_metrics(),
+        headers={"Content-Type": CONTENT_TYPE_LATEST},
+    )
+
 
 @app.post("/auth/login")
 def login(
